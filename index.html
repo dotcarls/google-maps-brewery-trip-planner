@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <title>Draggable directions</title>
+    <style>
+      html, body, #map-canvas {
+        height: 100%;
+        margin: 0px;
+        padding: 0px
+      }
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&signed_in=true&libraries=places"></script>
+    <script>
+
+var rendererOptions = {
+  draggable: true
+};
+var directionsDisplay = new google.maps.DirectionsRenderer(rendererOptions);;
+var directionsService = new google.maps.DirectionsService();
+var map;
+var infoWindow;
+var service;
+
+var australia = new google.maps.LatLng(-25.274398, 133.775136);
+
+function initialize() {
+
+  var mapOptions = {
+    zoom: 7,
+    center: australia
+  };
+  map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+  directionsDisplay.setMap(map);
+  directionsDisplay.setPanel(document.getElementById('directionsPanel'));
+
+  google.maps.event.addListener(directionsDisplay, 'directions_changed', function() {
+    computeTotalDistance(directionsDisplay.getDirections());
+  });
+
+  infoWindow = new google.maps.InfoWindow();
+  places = new google.maps.places.PlacesService(map);
+  calcRoute();
+}
+
+var timeLimit = 14400;
+
+function createMarker(place, type) {
+  var icon;
+  if (type == 'hotel') {
+    icon = {
+      // Star
+      path: 'M 0,-24 6,-7 24,-7 10,4 15,21 0,11 -15,21 -10,4 -24,-7 -6,-7 z',
+      fillColor: '#ffff00',
+      fillOpacity: 1,
+      scale: 1/4,
+      strokeColor: '#bd8d2c',
+      strokeWeight: 1
+    }
+  } else if (type == 'brewery') {
+    icon = {
+      // Star
+      path: 'M 0,-24 6,-7 24,-7 10,4 15,21 0,11 -15,21 -10,4 -24,-7 -6,-7 z',
+      fillColor: '#FF0000',
+      fillOpacity: 1,
+      scale: 1/4,
+      strokeColor: '#bd8d2c',
+      strokeWeight: 1
+    }
+  }
+  var marker = new google.maps.Marker({
+    map: map,
+    position: place.geometry.location,
+    icon: icon
+  });
+
+  google.maps.event.addListener(marker, 'click', function() {
+    places.getDetails(place, function(result, status) {
+      if (status != google.maps.places.PlacesServiceStatus.OK) {
+        alert(status);
+        return;
+      }
+      infoWindow.setContent(result.name + "<br>" + result.formatted_address + "\n");
+      infoWindow.open(map, marker);
+    });
+  });
+
+}
+
+
+function calcRoute() {
+  geocoder = new google.maps.Geocoder();
+
+
+  var request = {
+    origin: 'Grass Valley, CA',
+    destination: 'Bloomington, IN',
+    waypoints:[{location: 'Boulder, CO'}],
+    travelMode: google.maps.TravelMode.DRIVING
+  };
+
+  directionsService.route(request, function(response, status) {
+    if (status == google.maps.DirectionsStatus.OK) {
+      directionsDisplay.setDirections(response);
+      console.log(response);
+      
+      route = response.routes[0];
+      route.legs.forEach(function(leg) {
+        console.log("Leg:");
+        console.log(leg);
+        var counter = 0;
+        
+        leg.steps.forEach(function(step) {
+          console.log("Step:");
+          console.log(step);
+          counter = counter + step.duration.value;
+          console.log("counter: " + counter);
+          
+          if (counter >= timeLimit) {
+            geocoder.geocode({'latLng': step.lat_lngs[0]}, function(results, status) {
+              console.log(results);
+            });
+
+            var marker = new google.maps.Marker({
+              position: step.lat_lngs[0],
+              map: map,
+              title: 'Test'
+            });
+
+            var hotelSearch = {
+              location: step.lat_lngs[0],
+              radius: '10000',
+              query: 'lodging'
+            }
+            
+            var brewerySearch = {
+              location: step.lat_lngs[0],
+              radius: '10000',
+              query: 'brewery'
+            }
+
+            places.textSearch(hotelSearch, function(results, status) {
+              results.forEach(function(result) {
+                console.log(result);
+                createMarker(result, 'hotel');
+              });
+            });
+
+            places.textSearch(brewerySearch, function(results, status) {
+              results.forEach(function(result) {
+                console.log(result);
+                createMarker(result, 'brewery');
+              });
+            });
+            console.log(counter);
+
+            console.log(counter >= timeLimit);
+            console.log("8hrs found.");
+            counter = 0;
+            console.log
+          }
+        });
+      });
+    }
+  });
+}
+
+function computeTotalDistance(result) {
+  var total = 0;
+  var myroute = result.routes[0];
+  for (var i = 0; i < myroute.legs.length; i++) {
+    total += myroute.legs[i].distance.value;
+  }
+  total = total / 1000.0;
+  document.getElementById('total').innerHTML = total + ' km';
+}
+
+google.maps.event.addDomListener(window, 'load', initialize);
+
+    </script>
+  </head>
+  <body>
+    <div id="map-canvas" style="float:left;width:70%; height:100%"></div>
+    <div id="directionsPanel" style="float:right;width:30%;height 100%">
+    <p>Total Distance: <span id="total"></span></p>
+    </div>
+  </body>
+</html>
